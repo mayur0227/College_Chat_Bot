@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+
+{% block title %}
+Voice Assistant
+{% endblock title %}
+
+{% block body %}
+{% load static %}
+
+<div class="container-fluid mt-3">
+    <div class="panel messages-panel">
+        <div class="contacts-list">
+            <div class="mt-2">
+                <div data-toggle="tab" class="active">
+                    <h3> Voice Assistant </h3>
+                </div>
+                <hr>
+            </div>
+            <div class="tab-content">
+                <div id="voice-assistant" class="tab-pane active">
+                    <div class="message-chat">
+                        <div class="chat-body" id="chat-body">
+                            <!-- Messages will appear here -->
+                            <div id="response-container" class="text-center">
+                                <p><i>Ask me anything!</i></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="chat-footer">
+                        <!-- Button to start recording voice -->
+                        <button id="start-voice" class="btn btn-info">
+                            <i class="fa fa-microphone"></i> Start Listening
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript to handle voice input -->
+<script>
+    document.getElementById('start-voice').addEventListener('click', function () {
+        // Check if the SpeechRecognition API is available
+        if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+            const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.lang = 'en-US';
+            recognition.start();
+
+            recognition.onresult = function(event) {
+                const userSpeech = event.results[0][0].transcript;
+                document.getElementById("response-container").innerHTML = `<p><i>You said:</i> ${userSpeech}</p>`;
+
+                // Send the recognized text to the backend for processing
+                fetch("{% url 'voice_assistant' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: `voice_request=${encodeURIComponent(userSpeech)}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Display the AI's response
+                    const responseContainer = document.getElementById("response-container");
+                    responseContainer.innerHTML = `<p><strong>Assistant:</strong> ${data.assistant_response}</p>`;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById("response-container").innerHTML = "<p><i>Something went wrong. Try again!</i></p>";
+                });
+            };
+
+            recognition.onerror = function(event) {
+                alert("Error occurred in speech recognition: " + event.error);
+            };
+        } else {
+            alert('Your browser does not support speech recognition.');
+        }
+    });
+</script>
+
+<style>
+    .container-fluid {
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    .panel {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        padding: 20px;
+    }
+
+    .contacts-list {
+        width: 100%;
+        max-width: 600px;  /* You can adjust this to your preference */
+    }
+
+    .message-chat {
+        margin-top: 20px;
+    }
+
+    .chat-body {
+        padding: 20px;
+        background-color: #f1f1f1;
+        border-radius: 10px;
+        min-height: 200px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .chat-footer {
+        text-align: center;
+        margin-top: 20px;
+    }
+
+    #start-voice {
+        font-size: 16px;
+        padding: 10px 20px;
+    }
+
+    #response-container {
+        margin-top: 20px;
+    }
+</style>
+
+{% endblock body %}

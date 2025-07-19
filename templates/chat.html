@@ -1,0 +1,182 @@
+{% extends 'base.html' %}
+{% block title %} Chat {% endblock %}
+{% block body %}
+{% load static %}
+
+<div class="container mt-3">
+    <div class="chat-box">
+        <div class="chat-header">
+            <h4>Chat Here</h4>
+        </div>
+        <div class="chat-body" id="chat-body">
+            {% for message in conversation %}
+                <div class="message {% if message.sender == current_user %}my-message{% else %}ai-message{% endif %}">
+                    <div class="message-text">
+                        <span class="message-content">{{ message.message|linebreaksbr|safe }}</span>
+                        {% if message.sender == current_user %}
+                            <button class="edit-btn" onclick="editQuestion(this)">✏️</button>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% if not message.sender == current_user %}
+                    <hr class="message-separator">  <!-- Separator for Q&A -->
+                {% endif %}
+            {% endfor %}
+        </div>        
+        <div class="chat-footer">
+            <form id="chat-form" class="d-flex">
+                {% csrf_token %}
+                <textarea id="message-input" name="message" class="form-control" placeholder="Type your message..." rows="1"></textarea>
+                <button type="button" class="btn btn-primary" onclick="sendMessage()">Send</button>
+                <button type="button" class="btn btn-secondary ms-2" onclick="startVoiceRecognition()">
+                    <i class="fa fa-microphone"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .textarea-container {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        position: relative;
+    }
+    
+    .send-message-text {
+        width: 100%;
+        height: 45px;
+        padding-right: 90px; /* Adjusted for both icons */
+        resize: none;
+        border-radius: 20px;
+        border: 1px solid #ccc;
+        padding-left: 15px;
+        display: flex;
+        align-items: center;
+    }
+    
+    .send-message-button {
+        right: 50px;
+        top: 50%;
+        transform: translateY(-10%);
+        transform: translateX(160%);
+        width: 40px;
+        height: 40px;
+        background-color: #17a2b8;
+        color: white;
+        border: none;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 20px;
+        border-radius: 50%;
+        cursor: pointer;
+    }
+    
+    .send-message-button:hover {
+        background-color: #138496;
+    }
+    
+    .send-voice-button {
+        position: absolute;
+        right: 5px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 40px;
+        height: 40px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border-radius: 50%;
+        background-color: #17a2b8;
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-size: 20px;
+    }
+    
+    .send-voice-button:hover {
+        background-color: #138496;
+    }
+    
+</style>
+
+<script>
+    function sendMessage() {
+        let message = document.getElementById("message-input").value.trim();
+        if (message !== "") {
+            fetch("{% url 'send_message' %}", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": "{{ csrf_token }}",
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: `message=${encodeURIComponent(message)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                let chatBody = document.getElementById("chat-body");
+    
+                // Append the user's question with an edit button
+                let userMessage = document.createElement("div");
+                userMessage.classList.add("message", "my-message");
+                userMessage.innerHTML = `
+                    <div class="message-text">
+                        <span class="message-content">${message}</span>
+                        <button class="edit-btn" onclick="editQuestion(this)">✏️</button>
+                    </div>
+                `;
+                chatBody.appendChild(userMessage);
+    
+                // Append the AI's response
+                let aiMessage = document.createElement("div");
+                aiMessage.classList.add("message", "ai-message");
+                aiMessage.innerHTML = `<div class="message-text">${data.message}</div>`;
+                chatBody.appendChild(aiMessage);
+    
+                // Add a separator for clarity
+                let separator = document.createElement("hr");
+                separator.classList.add("message-separator");
+                chatBody.appendChild(separator);
+    
+                // Clear input field
+                document.getElementById("message-input").value = "";
+            });
+        }
+    }
+    
+
+    function startVoiceRecognition() {
+        let recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = "en-US";
+        recognition.start();
+        
+        recognition.onresult = function(event) {
+            let transcript = event.results[0][0].transcript;
+            document.getElementById("message-input").value = transcript;
+            sendMessage();
+        };
+    }
+
+    function editQuestion(button) {
+        let messageDiv = button.parentElement;
+        let messageText = messageDiv.querySelector(".message-content").innerText.trim();
+    
+        // Set the input field value to the selected question
+        document.getElementById("message-input").value = messageText;
+    
+        // Remove the previous response (optional)
+        let nextElement = messageDiv.parentElement.nextElementSibling;
+        if (nextElement && nextElement.classList.contains("ai-message")) {
+            nextElement.remove(); // Remove the previous AI response
+        }
+    
+        // Focus on the input field for editing
+        document.getElementById("message-input").focus();
+    }
+    
+</script>
+
+{% endblock body %}
